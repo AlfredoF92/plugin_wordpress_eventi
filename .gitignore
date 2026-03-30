@@ -1,0 +1,33 @@
+# WordPress (project repo hygiene)
+wp-config.php
+wp-config-local.php
+wp-config-*.php
+
+# Server / local environment
+.htaccess
+.user.ini
+
+# Uploads and runtime-generated content
+wp-content/uploads/
+wp-content/cache/
+wp-content/upgrade/
+wp-content/backups/
+wp-content/backup*/
+wp-content/ai1wm-backups/
+wp-content/wflogs/
+wp-content/debug.log
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Dependencies / build artifacts
+node_modules/
+vendor/
+
+# Paid / non-redistributable plugin
+wp-content/plugins/elementor-pro/
