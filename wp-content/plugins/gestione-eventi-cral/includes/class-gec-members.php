@@ -83,7 +83,19 @@ class GEC_Members {
 			$id = (int) $wpdb->insert_id;
 		}
 
-		if ( $id > 0 ) {
+		// Sync with WordPress users so members can log in site-wide.
+		$this->sync_wp_user_for_member(
+			$id,
+			array(
+				'member_code' => $member_code,
+				'first_name'  => $first_name,
+				'last_name'   => $last_name,
+				'email'       => $email,
+			),
+			$password
+		);
+
+		if ( $id > 0 && ! headers_sent() ) {
 			wp_safe_redirect(
 				add_query_arg(
 					array(
@@ -95,6 +107,67 @@ class GEC_Members {
 			);
 			exit;
 		}
+	}
+
+	private function sync_wp_user_for_member( $member_id, array $member_data, $plain_password = '' ) {
+		if ( $member_id <= 0 || empty( $member_data['email'] ) ) {
+			return;
+		}
+
+		// Ensure role exists.
+		if ( ! get_role( 'cral_member' ) ) {
+			add_role( 'cral_member', 'Socio CRAL', array( 'read' => true ) );
+		}
+
+		$email = $member_data['email'];
+		$user  = get_user_by( 'email', $email );
+
+		$display_name = trim( $member_data['first_name'] . ' ' . $member_data['last_name'] );
+		$username_base = ! empty( $member_data['member_code'] ) ? $member_data['member_code'] : $email;
+		$username      = sanitize_user( $username_base, true );
+		if ( '' === $username ) {
+			$username = sanitize_user( $email, true );
+		}
+
+		if ( ! $user ) {
+			// Create WP user.
+			$user_id = wp_create_user(
+				$username,
+				! empty( $plain_password ) ? $plain_password : wp_generate_password( 12, true ),
+				$email
+			);
+
+			if ( is_wp_error( $user_id ) ) {
+				return;
+			}
+
+			$user = get_user_by( 'id', $user_id );
+		} else {
+			$user_id = (int) $user->ID;
+		}
+
+		$userdata = array(
+			'ID'           => $user_id,
+			'user_email'   => $email,
+			'display_name' => $display_name,
+			'first_name'   => $member_data['first_name'],
+			'last_name'    => $member_data['last_name'],
+		);
+
+		if ( ! empty( $plain_password ) ) {
+			$userdata['user_pass'] = $plain_password;
+		}
+
+		wp_update_user( $userdata );
+
+		// Set role (do not remove other roles if admin).
+		if ( $user instanceof WP_User ) {
+			if ( ! in_array( 'administrator', (array) $user->roles, true ) ) {
+				$user->set_role( 'cral_member' );
+			}
+		}
+
+		update_user_meta( $user_id, 'gec_member_id', (int) $member_id );
 	}
 
 	private function handle_member_delete() {
@@ -237,6 +310,10 @@ class GEC_Members {
 						<th><label for="password"><?php esc_html_e( 'Password', 'gestione-eventi-cral' ); ?></label></th>
 						<td>
 							<input type="password" id="password" name="password" class="regular-text" <?php echo $id ? '' : 'required'; ?> />
+							<label style="display:inline-flex;align-items:center;margin-top:6px;">
+								<input type="checkbox" id="gec-toggle-password" style="margin-right:6px;" />
+								<?php esc_html_e( 'Mostra password', 'gestione-eventi-cral' ); ?>
+							</label>
 							<p class="description">
 								<?php
 								echo esc_html(
@@ -252,6 +329,16 @@ class GEC_Members {
 
 				<?php submit_button( $id > 0 ? __( 'Aggiorna socio', 'gestione-eventi-cral' ) : __( 'Crea socio', 'gestione-eventi-cral' ) ); ?>
 			</form>
+			<script>
+				(function() {
+					var checkbox = document.getElementById('gec-toggle-password');
+					var input = document.getElementById('password');
+					if (!checkbox || !input) return;
+					checkbox.addEventListener('change', function () {
+						input.type = checkbox.checked ? 'text' : 'password';
+					});
+				})();
+			</script>
 		</div>
 		<?php
 	}

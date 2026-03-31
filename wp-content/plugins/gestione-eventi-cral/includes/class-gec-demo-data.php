@@ -217,7 +217,40 @@ class GEC_Demo_Data {
 			);
 
 			if ( $wpdb->insert_id ) {
-				$ids[] = (int) $wpdb->insert_id;
+				$member_id = (int) $wpdb->insert_id;
+				$ids[] = $member_id;
+
+				// Also create/update WP user so demo members can log in.
+				$username = sanitize_user( $member['code'], true );
+				if ( '' === $username ) {
+					$username = sanitize_user( $member['email'], true );
+				}
+
+				$user = get_user_by( 'email', $member['email'] );
+				if ( ! $user ) {
+					$user_id = wp_create_user( $username, 'Password123!', $member['email'] );
+					if ( ! is_wp_error( $user_id ) ) {
+						$user = get_user_by( 'id', $user_id );
+					}
+				}
+
+				if ( $user instanceof WP_User ) {
+					update_user_meta( $user->ID, 'gec_member_id', $member_id );
+					wp_update_user(
+						array(
+							'ID'           => $user->ID,
+							'display_name' => trim( $member['first'] . ' ' . $member['last'] ),
+							'first_name'   => $member['first'],
+							'last_name'    => $member['last'],
+						)
+					);
+					if ( ! in_array( 'administrator', (array) $user->roles, true ) ) {
+						if ( ! get_role( 'cral_member' ) ) {
+							add_role( 'cral_member', 'Socio CRAL', array( 'read' => true ) );
+						}
+						$user->set_role( 'cral_member' );
+					}
+				}
 			}
 		}
 
