@@ -127,14 +127,21 @@ class GEC_Members {
 
 		$members = $wpdb->get_results( "SELECT * FROM {$this->table} ORDER BY created_at DESC" );
 		?>
-		<div class="wrap">
-			<h1 class="wp-heading-inline"><?php esc_html_e( 'Soci CRAL', 'gestione-eventi-cral' ); ?></h1>
+		<div class="wrap gec-wrap">
+			<div class="gec-header">
+				<div>
+					<h1 class="gec-page-title"><?php esc_html_e( 'Soci', 'gestione-eventi-cral' ); ?></h1>
+					<p class="gec-subtitle"><?php esc_html_e( 'Gestione anagrafica soci CRAL.', 'gestione-eventi-cral' ); ?></p>
+				</div>
+			</div>
+			<div style="margin-top:10px;">
 			<a href="<?php echo esc_url( add_query_arg( array( 'page' => 'gec-members', 'action' => 'add' ), admin_url( 'admin.php' ) ) ); ?>" class="page-title-action">
 				<?php esc_html_e( 'Aggiungi nuovo', 'gestione-eventi-cral' ); ?>
 			</a>
 			<hr class="wp-header-end" />
+			</div>
 
-			<table class="widefat fixed striped">
+			<table class="widefat fixed striped gec-table" style="margin-top:12px;">
 				<thead>
 					<tr>
 						<th><?php esc_html_e( 'Codice socio', 'gestione-eventi-cral' ); ?></th>
@@ -153,12 +160,14 @@ class GEC_Members {
 							<td><?php echo esc_html( $member->last_name ); ?></td>
 							<td><?php echo esc_html( $member->email ); ?></td>
 							<td>
-								<a href="<?php echo esc_url( add_query_arg( array( 'page' => 'gec-members', 'action' => 'edit', 'member' => $member->id ), admin_url( 'admin.php' ) ) ); ?>">
-									<?php esc_html_e( 'Modifica', 'gestione-eventi-cral' ); ?>
-								</a> |
-								<a href="<?php echo esc_url( wp_nonce_url( add_query_arg( array( 'page' => 'gec-members', 'action' => 'delete', 'member' => $member->id ), admin_url( 'admin.php' ) ), 'gec_delete_member_' . $member->id ) ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Sei sicuro di voler eliminare questo socio?', 'gestione-eventi-cral' ) ); ?>');">
-									<?php esc_html_e( 'Elimina', 'gestione-eventi-cral' ); ?>
-								</a>
+								<span class="gec-row-actions">
+									<a class="gec-row-btn gec-row-btn--primary" href="<?php echo esc_url( add_query_arg( array( 'page' => 'gec-members', 'action' => 'edit', 'member' => $member->id ), admin_url( 'admin.php' ) ) ); ?>">
+										<?php esc_html_e( 'Modifica', 'gestione-eventi-cral' ); ?>
+									</a>
+									<a class="gec-row-btn gec-row-btn--danger" href="<?php echo esc_url( wp_nonce_url( add_query_arg( array( 'page' => 'gec-members', 'action' => 'delete', 'member' => $member->id ), admin_url( 'admin.php' ) ), 'gec_delete_member_' . $member->id ) ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Sei sicuro di voler eliminare questo socio?', 'gestione-eventi-cral' ) ); ?>');">
+										<?php esc_html_e( 'Elimina', 'gestione-eventi-cral' ); ?>
+									</a>
+								</span>
 							</td>
 						</tr>
 					<?php endforeach; ?>
@@ -193,10 +202,15 @@ class GEC_Members {
 		$email       = $member ? $member->email : '';
 
 		?>
-		<div class="wrap">
-			<h1>
-				<?php echo $id > 0 ? esc_html__( 'Modifica socio', 'gestione-eventi-cral' ) : esc_html__( 'Aggiungi socio', 'gestione-eventi-cral' ); ?>
-			</h1>
+		<div class="wrap gec-wrap">
+			<div class="gec-header">
+				<div>
+					<h1 class="gec-page-title">
+						<?php echo $id > 0 ? esc_html__( 'Modifica socio', 'gestione-eventi-cral' ) : esc_html__( 'Aggiungi socio', 'gestione-eventi-cral' ); ?>
+					</h1>
+					<p class="gec-subtitle"><?php esc_html_e( 'Inserisci i dati anagrafici del socio.', 'gestione-eventi-cral' ); ?></p>
+				</div>
+			</div>
 
 			<form method="post">
 				<?php wp_nonce_field( 'gec_save_member', 'gec_member_nonce' ); ?>

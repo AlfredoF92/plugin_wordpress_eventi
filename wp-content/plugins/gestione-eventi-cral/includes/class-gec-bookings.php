@@ -154,44 +154,57 @@ class GEC_Bookings {
 		}
 
 		?>
-		<div class="wrap">
-			<h1><?php echo esc_html( sprintf( __( 'Iscritti: %s', 'gestione-eventi-cral' ), $event_title ? $event_title : '#' . $event_id ) ); ?></h1>
-			<div style="margin:10px 0 14px;padding:12px 14px;background:#fff;border:1px solid #dcdcde;border-radius:6px;">
-				<strong><?php esc_html_e( 'Riepilogo (confermate)', 'gestione-eventi-cral' ); ?></strong>
-				<ul style="margin:8px 0 0 18px;">
-					<li><?php echo esc_html( sprintf( __( 'Soci iscritti: %d', 'gestione-eventi-cral' ), $confirmed_bookings_count ) ); ?></li>
-					<li><?php echo esc_html( sprintf( __( 'Accompagnatori: %d', 'gestione-eventi-cral' ), $confirmed_guests_count ) ); ?></li>
-					<?php if ( $max_participants > 0 ) : ?>
-						<li>
-							<?php
-							echo esc_html(
-								sprintf(
-									__( 'Posti: %1$d occupati / %2$d totali (%3$d disponibili)', 'gestione-eventi-cral' ),
-									$seats_occupied,
-									$max_participants,
-									(int) $seats_available
-								)
-							);
-							?>
-						</li>
-					<?php else : ?>
-						<li><?php echo esc_html( sprintf( __( 'Posti occupati: %d', 'gestione-eventi-cral' ), $seats_occupied ) ); ?></li>
-					<?php endif; ?>
-					<li>
+		<div class="wrap gec-wrap">
+			<div class="gec-header">
+				<div>
+					<h1 class="gec-page-title"><?php echo esc_html( sprintf( __( 'Iscritti: %s', 'gestione-eventi-cral' ), $event_title ? $event_title : '#' . $event_id ) ); ?></h1>
+					<p class="gec-subtitle"><?php esc_html_e( 'Gestisci iscrizioni, accompagnatori e note.', 'gestione-eventi-cral' ); ?></p>
+				</div>
+			</div>
+
+			<div class="gec-card gec-card--padded" style="margin-top:12px;">
+				<div class="gec-label"><?php esc_html_e( 'Riepilogo (confermate)', 'gestione-eventi-cral' ); ?></div>
+				<div class="gec-summary" style="margin-top:10px;">
+					<div class="gec-kpi">
+						<div class="gec-kpi__label"><?php esc_html_e( 'Soci iscritti', 'gestione-eventi-cral' ); ?></div>
+						<div class="gec-kpi__value"><?php echo esc_html( (string) $confirmed_bookings_count ); ?></div>
+					</div>
+					<div class="gec-kpi">
+						<div class="gec-kpi__label"><?php esc_html_e( 'Accompagnatori', 'gestione-eventi-cral' ); ?></div>
+						<div class="gec-kpi__value"><?php echo esc_html( (string) $confirmed_guests_count ); ?></div>
+					</div>
+					<div class="gec-kpi gec-kpi--accent">
+						<div class="gec-kpi__label"><?php esc_html_e( 'Posti', 'gestione-eventi-cral' ); ?></div>
+						<div class="gec-kpi__value">
+							<?php if ( $max_participants > 0 ) : ?>
+								<?php echo esc_html( sprintf( '%d / %d', $seats_occupied, $max_participants ) ); ?>
+							<?php else : ?>
+								<?php echo esc_html( (string) $seats_occupied ); ?>
+							<?php endif; ?>
+						</div>
+					</div>
+					<div class="gec-kpi gec-kpi--accent">
+						<div class="gec-kpi__label"><?php esc_html_e( 'Totale pagato', 'gestione-eventi-cral' ); ?></div>
+						<div class="gec-kpi__value"><?php echo esc_html( number_format_i18n( $confirmed_total_paid, 2 ) ); ?></div>
+					</div>
+				</div>
+
+				<?php if ( $max_participants > 0 ) : ?>
+					<p class="gec-subtitle" style="margin-top:10px;">
 						<?php
 						echo esc_html(
 							sprintf(
-								__( 'Totale pagato: %s', 'gestione-eventi-cral' ),
-								number_format_i18n( $confirmed_total_paid, 2 )
+								__( 'Disponibili: %d posti', 'gestione-eventi-cral' ),
+								(int) $seats_available
 							)
 						);
 						?>
-					</li>
-				</ul>
+					</p>
+				<?php endif; ?>
 			</div>
 			<p><a class="button" href="<?php echo esc_url( $back_url ); ?>"><?php esc_html_e( '← Torna agli eventi', 'gestione-eventi-cral' ); ?></a></p>
 
-			<table class="widefat fixed striped">
+			<table class="widefat fixed striped gec-table">
 				<thead>
 					<tr>
 						<th><?php esc_html_e( 'Socio', 'gestione-eventi-cral' ); ?></th>
@@ -263,12 +276,14 @@ class GEC_Bookings {
 							<td><?php echo esc_html( $booking->member_code ); ?></td>
 							<td><?php echo esc_html( $booking->email ); ?></td>
 							<td>
-								<a class="button button-small" href="#" data-gec-view-booking="<?php echo esc_attr( (string) $booking->id ); ?>">
-									<?php esc_html_e( 'Dettagli / Modifica', 'gestione-eventi-cral' ); ?>
-								</a>
-								<a class="button button-small" href="#" data-gec-delete-booking="<?php echo esc_attr( (string) $booking->id ); ?>">
-									<?php esc_html_e( 'Elimina', 'gestione-eventi-cral' ); ?>
-								</a>
+								<span class="gec-row-actions">
+									<a class="gec-row-btn gec-row-btn--primary" href="#" data-gec-view-booking="<?php echo esc_attr( (string) $booking->id ); ?>">
+										<?php esc_html_e( 'Dettagli / Modifica', 'gestione-eventi-cral' ); ?>
+									</a>
+									<a class="gec-row-btn gec-row-btn--danger" href="#" data-gec-delete-booking="<?php echo esc_attr( (string) $booking->id ); ?>">
+										<?php esc_html_e( 'Elimina', 'gestione-eventi-cral' ); ?>
+									</a>
+								</span>
 							</td>
 							<td><?php echo esc_html( (string) $seats_total ); ?></td>
 							<td><?php echo ! empty( $summary_lines ) ? esc_html( implode( "\n", $summary_lines ) ) : esc_html__( '—', 'gestione-eventi-cral' ); ?></td>
@@ -704,10 +719,15 @@ class GEC_Bookings {
 		$bookings = $wpdb->get_results( $sql );
 
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Prenotazioni eventi', 'gestione-eventi-cral' ); ?></h1>
+		<div class="wrap gec-wrap">
+			<div class="gec-header">
+				<div>
+					<h1 class="gec-page-title"><?php esc_html_e( 'Prenotazioni', 'gestione-eventi-cral' ); ?></h1>
+					<p class="gec-subtitle"><?php esc_html_e( 'Elenco prenotazioni (tutti gli eventi).', 'gestione-eventi-cral' ); ?></p>
+				</div>
+			</div>
 
-			<table class="widefat fixed striped">
+			<table class="widefat fixed striped gec-table" style="margin-top:12px;">
 				<thead>
 					<tr>
 						<th><?php esc_html_e( 'Evento', 'gestione-eventi-cral' ); ?></th>

@@ -22,6 +22,7 @@ require_once GEC_PLUGIN_DIR . 'includes/class-gec-admin-menu.php';
 require_once GEC_PLUGIN_DIR . 'includes/class-gec-members.php';
 require_once GEC_PLUGIN_DIR . 'includes/class-gec-bookings.php';
 require_once GEC_PLUGIN_DIR . 'includes/class-gec-demo-data.php';
+require_once GEC_PLUGIN_DIR . 'includes/class-gec-brand.php';
 
 register_activation_hook( __FILE__, array( 'GEC_Activator', 'activate' ) );
 
@@ -34,8 +35,9 @@ function gec_bootstrap() {
 
 	$members  = new GEC_Members();
 	$bookings = new GEC_Bookings();
+	$brand    = new GEC_Brand();
 
-	$admin_menu = new GEC_Admin_Menu( $members, $bookings );
+	$admin_menu = new GEC_Admin_Menu( $members, $bookings, $brand );
 	$admin_menu->register();
 
 	if ( is_admin() ) {

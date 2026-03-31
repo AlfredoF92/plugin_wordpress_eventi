@@ -287,7 +287,7 @@ class GEC_Post_Types {
 				$occ
 			);
 
-			echo '<a class="button button-small" href="' . esc_url( $url ) . '">' . esc_html( $link_label ) . '</a>';
+			echo '<a class="gec-row-btn gec-row-btn--primary" href="' . esc_url( $url ) . '">' . esc_html( $link_label ) . '</a>';
 			return;
 		}
 	}
@@ -309,7 +309,7 @@ class GEC_Post_Types {
 			admin_url( 'admin.php' )
 		);
 
-		$actions['gec_attendees'] = '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Iscritti', 'gestione-eventi-cral' ) . '</a>';
+		$actions['gec_attendees'] = '<a class="gec-row-btn" href="' . esc_url( $url ) . '">' . esc_html__( 'Iscritti', 'gestione-eventi-cral' ) . '</a>';
 
 		return $actions;
 	}

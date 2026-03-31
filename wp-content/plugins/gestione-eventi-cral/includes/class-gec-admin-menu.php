@@ -16,9 +16,15 @@ class GEC_Admin_Menu {
 	 */
 	private $bookings;
 
-	public function __construct( GEC_Members $members, GEC_Bookings $bookings ) {
+	/**
+	 * @var GEC_Brand
+	 */
+	private $brand;
+
+	public function __construct( GEC_Members $members, GEC_Bookings $bookings, GEC_Brand $brand ) {
 		$this->members  = $members;
 		$this->bookings = $bookings;
+		$this->brand    = $brand;
 	}
 
 	public function register() {
@@ -64,6 +70,15 @@ class GEC_Admin_Menu {
 			array( $this->bookings, 'render_bookings_page' )
 		);
 
+		add_submenu_page(
+			'gec-dashboard',
+			__( 'Brand Identity', 'gestione-eventi-cral' ),
+			__( 'Brand Identity', 'gestione-eventi-cral' ),
+			$capability,
+			'gec-brand-identity',
+			array( $this->brand, 'render_brand_identity_page' )
+		);
+
 		// Hidden page, used by "Iscritti" quick action from events list.
 		add_submenu_page(
 			'gec-dashboard',
@@ -80,14 +95,22 @@ class GEC_Admin_Menu {
 			return;
 		}
 		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Gestione Eventi CRAL', 'gestione-eventi-cral' ); ?></h1>
-			<p><?php esc_html_e( 'Da qui puoi gestire eventi, soci e prenotazioni del CRAL.', 'gestione-eventi-cral' ); ?></p>
-			<ul>
-				<li><a href="<?php echo esc_url( admin_url( 'edit.php?post_type=cral_event' ) ); ?>"><?php esc_html_e( 'Vai agli eventi', 'gestione-eventi-cral' ); ?></a></li>
-				<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=gec-members' ) ); ?>"><?php esc_html_e( 'Gestisci soci', 'gestione-eventi-cral' ); ?></a></li>
-				<li><a href="<?php echo esc_url( admin_url( 'admin.php?page=gec-bookings' ) ); ?>"><?php esc_html_e( 'Gestisci prenotazioni', 'gestione-eventi-cral' ); ?></a></li>
-			</ul>
+		<div class="wrap gec-wrap">
+			<div class="gec-header">
+				<div>
+					<h1 class="gec-page-title"><?php esc_html_e( 'Gestione Eventi CRAL', 'gestione-eventi-cral' ); ?></h1>
+					<p class="gec-subtitle"><?php esc_html_e( 'Da qui puoi gestire eventi, soci e prenotazioni del CRAL.', 'gestione-eventi-cral' ); ?></p>
+				</div>
+			</div>
+
+			<div class="gec-card gec-card--padded" style="margin-top:12px;">
+				<ul class="gec-list">
+					<li><a class="gec-btn gec-btn--primary" href="<?php echo esc_url( admin_url( 'edit.php?post_type=cral_event' ) ); ?>"><?php esc_html_e( 'Vai agli eventi', 'gestione-eventi-cral' ); ?></a></li>
+					<li style="margin-top:10px;"><a class="gec-btn" href="<?php echo esc_url( admin_url( 'admin.php?page=gec-members' ) ); ?>"><?php esc_html_e( 'Gestisci soci', 'gestione-eventi-cral' ); ?></a></li>
+					<li style="margin-top:10px;"><a class="gec-btn" href="<?php echo esc_url( admin_url( 'admin.php?page=gec-bookings' ) ); ?>"><?php esc_html_e( 'Gestisci prenotazioni', 'gestione-eventi-cral' ); ?></a></li>
+					<li style="margin-top:10px;"><a class="gec-btn" href="<?php echo esc_url( admin_url( 'admin.php?page=gec-brand-identity' ) ); ?>"><?php esc_html_e( 'Brand Identity', 'gestione-eventi-cral' ); ?></a></li>
+				</ul>
+			</div>
 		</div>
 		<?php
 	}

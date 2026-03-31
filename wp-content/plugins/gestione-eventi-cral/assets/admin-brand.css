@@ -1,0 +1,311 @@
+/* Gestione Eventi CRAL — Admin Brand Identity */
+:root {
+  --gec-brand-primary: #1d3a6b;   /* dark professional blue */
+  --gec-brand-accent: #2f855a;    /* subtle green accent */
+  --gec-brand-primary-2: #254372;
+  --gec-brand-ink: #111827;
+  --gec-brand-muted: #6b7280;
+  --gec-brand-border: #d4d4d8;
+  --gec-brand-bg: #f3f4f6;
+  --gec-brand-card: #ffffff;
+  --gec-brand-radius: 10px;
+  --gec-brand-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.gec-wrap {
+  margin-top: 12px;
+}
+
+.gec-page-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--gec-brand-primary);
+}
+
+.gec-page-title strong {
+  font-weight: 950;
+}
+
+.gec-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #f9fafb, #e5e7eb);
+  border: 1px solid var(--gec-brand-border);
+  border-radius: var(--gec-brand-radius);
+  box-shadow: var(--gec-brand-shadow);
+}
+
+.gec-subtitle {
+  margin: 4px 0 0;
+  color: var(--gec-brand-muted);
+  font-size: 13px;
+}
+
+.gec-section-title {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  color: var(--gec-brand-ink);
+}
+
+.gec-label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gec-brand-muted);
+  letter-spacing: 0.01em;
+}
+
+.gec-card {
+  background: var(--gec-brand-card);
+  border: 1px solid var(--gec-brand-border);
+  border-radius: var(--gec-brand-radius);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+}
+
+.gec-card--padded {
+  padding: 14px 16px;
+}
+
+.gec-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.gec-kpi {
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, #f9fafb, #ffffff);
+}
+
+.gec-kpi__label {
+  font-size: 11px;
+  color: var(--gec-brand-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gec-kpi__value {
+  margin-top: 6px;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--gec-brand-primary);
+}
+
+.gec-kpi--accent {
+  border-color: rgba(47, 133, 90, 0.18);
+  background: linear-gradient(180deg, #ecfdf3, #ffffff);
+}
+
+.gec-kpi--accent .gec-kpi__value {
+  color: var(--gec-brand-accent);
+}
+
+.gec-table.widefat {
+  border-radius: var(--gec-brand-radius);
+  overflow: hidden;
+  border: 1px solid var(--gec-brand-border);
+}
+
+.gec-table.widefat thead th {
+  /* Monocolor header in grayscale */
+  background: #f3f4f6;
+  color: #111827;
+  font-weight: 800 !important;
+  letter-spacing: 0.01em;
+  border-bottom: 1px solid #d4d4d8;
+  text-shadow: none;
+}
+
+.gec-table.widefat thead th a {
+  color: #111827;
+}
+
+.gec-table.widefat thead th a:hover {
+  color: #020617;
+}
+
+.gec-table.widefat tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.gec-table.widefat tbody td {
+  color: #1f2937;
+}
+
+.gec-table.widefat td,
+.gec-table.widefat th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+/* Row action buttons inside tables */
+.gec-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gec-row-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 8px;
+  border: 1px solid #d4d4d8;
+  background: #ffffff;
+  color: #374151;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.gec-row-btn:hover {
+  border-color: #9ca3af;
+  background: #f3f4f6;
+  color: #111827;
+}
+
+.gec-row-btn--primary {
+  background: #e5e7eb;
+  border-color: #d4d4d8;
+  color: var(--gec-brand-primary);
+}
+
+.gec-row-btn--primary:hover {
+  background: #d4d4d8;
+  color: var(--gec-brand-primary);
+}
+
+.gec-row-btn--danger {
+  border-color: rgba(185, 28, 28, 0.25);
+  color: #b91c1c;
+  background: #ffffff;
+}
+
+.gec-row-btn--danger:hover {
+  background: rgba(185, 28, 28, 0.06);
+  color: #b91c1c;
+}
+
+/* Apply the same row button style on WP list-table for Eventi */
+.post-type-cral_event .gec-row-btn {
+  height: 28px;
+  border-radius: 9px;
+}
+
+.gec-table.widefat td,
+.gec-table.widefat th {
+  vertical-align: top;
+}
+
+.gec-pre {
+  background: #0b1020;
+  color: #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.gec-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(28, 47, 135, 0.22);
+  background: #fff;
+  color: var(--gec-brand-primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.gec-btn:hover {
+  border-color: rgba(28, 47, 135, 0.35);
+  background: rgba(28, 47, 135, 0.06);
+}
+
+.gec-btn--primary {
+  border-color: rgba(28, 47, 135, 0.12);
+  background: var(--gec-brand-primary);
+  color: #fff;
+}
+
+.gec-btn--primary:hover {
+  background: #16266d;
+}
+
+.gec-btn--danger {
+  border-color: rgba(185, 28, 28, 0.18);
+  color: #b91c1c;
+}
+
+.gec-btn--danger:hover {
+  background: rgba(185, 28, 28, 0.06);
+}
+
+.gec-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(28, 47, 135, 0.18);
+  color: var(--gec-brand-primary);
+  background: rgba(28, 47, 135, 0.06);
+}
+
+.gec-badge--accent {
+  border-color: rgba(18, 162, 74, 0.22);
+  color: var(--gec-brand-accent);
+  background: rgba(18, 162, 74, 0.08);
+}
+
+.gec-list {
+  margin: 10px 0 0;
+  padding-left: 16px;
+  color: var(--gec-brand-muted);
+}
+
+@media (max-width: 1100px) {
+  .gec-summary {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+}
+
+/* Eventi (CPT cral_event) list styling */
+.post-type-cral_event .wrap > h1 {
+  font-size: 22px;
+  font-weight: 750 !important;
+  letter-spacing: -0.01em;
+  color: var(--gec-brand-primary);
+}
+
+.post-type-cral_event .wp-list-table.widefat thead th {
+  background: #f3f4f6;
+  color: #111827;
+  font-weight: 800 !important;
+  border-bottom: 1px solid #d4d4d8;
+}
+
+.post-type-cral_event .wp-list-table.widefat thead th a {
+  color: #111827;
+}
+
+.post-type-cral_event .wp-list-table.widefat tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
