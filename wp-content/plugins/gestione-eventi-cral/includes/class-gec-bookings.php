@@ -15,6 +15,42 @@ class GEC_Bookings {
 		$this->bookings_table       = $wpdb->prefix . 'cral_bookings';
 		$this->booking_guests_table = $wpdb->prefix . 'cral_booking_guests';
 		$this->members_table        = $wpdb->prefix . 'cral_members';
+
+		add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
+		add_action( 'wp_ajax_gec_get_booking_details', array( $this, 'ajax_get_booking_details' ) );
+		add_action( 'wp_ajax_gec_update_booking', array( $this, 'ajax_update_booking' ) );
+		add_action( 'wp_ajax_gec_delete_booking', array( $this, 'ajax_delete_booking' ) );
+		add_action( 'wp_ajax_gec_add_guest', array( $this, 'ajax_add_guest' ) );
+		add_action( 'wp_ajax_gec_delete_guest', array( $this, 'ajax_delete_guest' ) );
+	}
+
+	public function admin_enqueue_scripts( $hook_suffix ) {
+		if ( ! isset( $_GET['page'] ) || 'gec-event-attendees' !== $_GET['page'] ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		add_thickbox();
+
+		wp_enqueue_script(
+			'gec-admin-attendees',
+			GEC_PLUGIN_URL . 'assets/admin-attendees.js',
+			array(),
+			GEC_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'gec-admin-attendees',
+			'gecAttendees',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'gec_booking_admin' ),
+			)
+		);
 	}
 
 	public function render_bookings_page() {
@@ -93,6 +129,7 @@ class GEC_Bookings {
 						<th><?php esc_html_e( 'Socio', 'gestione-eventi-cral' ); ?></th>
 						<th><?php esc_html_e( 'Codice socio', 'gestione-eventi-cral' ); ?></th>
 						<th><?php esc_html_e( 'Email', 'gestione-eventi-cral' ); ?></th>
+						<th><?php esc_html_e( 'Azioni', 'gestione-eventi-cral' ); ?></th>
 						<th><?php esc_html_e( 'Posti', 'gestione-eventi-cral' ); ?></th>
 						<th><?php esc_html_e( 'Accompagnatori (q.tà / costo)', 'gestione-eventi-cral' ); ?></th>
 						<th><?php esc_html_e( 'Nomi accompagnatori', 'gestione-eventi-cral' ); ?></th>
@@ -157,6 +194,14 @@ class GEC_Bookings {
 							<td><?php echo esc_html( trim( $booking->first_name . ' ' . $booking->last_name ) ); ?></td>
 							<td><?php echo esc_html( $booking->member_code ); ?></td>
 							<td><?php echo esc_html( $booking->email ); ?></td>
+							<td>
+								<a class="button button-small" href="#" data-gec-view-booking="<?php echo esc_attr( (string) $booking->id ); ?>">
+									<?php esc_html_e( 'Dettagli / Modifica', 'gestione-eventi-cral' ); ?>
+								</a>
+								<a class="button button-small" href="#" data-gec-delete-booking="<?php echo esc_attr( (string) $booking->id ); ?>">
+									<?php esc_html_e( 'Elimina', 'gestione-eventi-cral' ); ?>
+								</a>
+							</td>
 							<td><?php echo esc_html( (string) $seats_total ); ?></td>
 							<td><?php echo ! empty( $summary_lines ) ? esc_html( implode( "\n", $summary_lines ) ) : esc_html__( '—', 'gestione-eventi-cral' ); ?></td>
 							<td><?php echo ! empty( $guest_names_lines ) ? esc_html( implode( "\n", $guest_names_lines ) ) : esc_html__( '—', 'gestione-eventi-cral' ); ?></td>
@@ -168,13 +213,413 @@ class GEC_Bookings {
 					<?php endforeach; ?>
 				<?php else : ?>
 					<tr>
-						<td colspan="10"><?php esc_html_e( 'Nessuna prenotazione trovata per questo evento.', 'gestione-eventi-cral' ); ?></td>
+						<td colspan="11"><?php esc_html_e( 'Nessuna prenotazione trovata per questo evento.', 'gestione-eventi-cral' ); ?></td>
 					</tr>
 				<?php endif; ?>
 				</tbody>
 			</table>
+
+			<div id="gec-booking-modal" style="display:none;">
+				<div class="wrap">
+					<h2><?php esc_html_e( 'Dettaglio prenotazione', 'gestione-eventi-cral' ); ?></h2>
+					<p id="gec-booking-modal-status" style="margin:8px 0;color:#1d2327;"></p>
+
+					<table class="widefat striped" style="margin-top:10px;">
+						<tbody>
+							<tr>
+								<th style="width:180px;"><?php esc_html_e( 'ID', 'gestione-eventi-cral' ); ?></th>
+								<td><span id="gec-booking-id"></span></td>
+							</tr>
+							<tr>
+								<th><?php esc_html_e( 'Evento', 'gestione-eventi-cral' ); ?></th>
+								<td><span id="gec-booking-event"></span></td>
+							</tr>
+							<tr>
+								<th><?php esc_html_e( 'Socio', 'gestione-eventi-cral' ); ?></th>
+								<td><span id="gec-booking-member"></span></td>
+							</tr>
+							<tr>
+								<th><?php esc_html_e( 'Email', 'gestione-eventi-cral' ); ?></th>
+								<td><span id="gec-booking-email"></span></td>
+							</tr>
+							<tr>
+								<th><?php esc_html_e( 'Data prenotazione', 'gestione-eventi-cral' ); ?></th>
+								<td><span id="gec-booking-created"></span></td>
+							</tr>
+						</tbody>
+					</table>
+
+					<h3 style="margin-top:16px;"><?php esc_html_e( 'Modifica', 'gestione-eventi-cral' ); ?></h3>
+					<p>
+						<label for="gec-booking-status"><strong><?php esc_html_e( 'Stato', 'gestione-eventi-cral' ); ?></strong></label><br/>
+						<select id="gec-booking-status">
+							<option value="confirmed"><?php esc_html_e( 'confirmed', 'gestione-eventi-cral' ); ?></option>
+							<option value="cancelled"><?php esc_html_e( 'cancelled', 'gestione-eventi-cral' ); ?></option>
+							<option value="pending"><?php esc_html_e( 'pending', 'gestione-eventi-cral' ); ?></option>
+						</select>
+					</p>
+					<p>
+						<label for="gec-booking-notes"><strong><?php esc_html_e( 'Note', 'gestione-eventi-cral' ); ?></strong></label><br/>
+						<textarea id="gec-booking-notes" class="large-text" rows="3"></textarea>
+					</p>
+
+					<h3 style="margin-top:16px;"><?php esc_html_e( 'Accompagnatori', 'gestione-eventi-cral' ); ?></h3>
+					<div id="gec-booking-guests"></div>
+					<div style="margin-top:10px;">
+						<h4 style="margin:0 0 6px;"><?php esc_html_e( 'Aggiungi accompagnatore', 'gestione-eventi-cral' ); ?></h4>
+						<div id="gec-booking-add-guest"></div>
+					</div>
+
+					<p style="margin-top:16px;">
+						<strong><?php esc_html_e( 'Totale', 'gestione-eventi-cral' ); ?>:</strong>
+						<span id="gec-booking-total"></span>
+					</p>
+
+					<p style="margin-top:16px;">
+						<button class="button button-primary" id="gec-booking-save"><?php esc_html_e( 'Salva', 'gestione-eventi-cral' ); ?></button>
+						<button class="button" id="gec-booking-close"><?php esc_html_e( 'Chiudi', 'gestione-eventi-cral' ); ?></button>
+					</p>
+				</div>
+			</div>
 		</div>
 		<?php
+	}
+
+	public function ajax_get_booking_details() {
+		$this->ajax_require_admin();
+
+		$booking_id = isset( $_POST['booking_id'] ) ? (int) $_POST['booking_id'] : 0;
+		if ( $booking_id <= 0 ) {
+			wp_send_json_error( array( 'message' => 'booking_id non valido' ), 400 );
+		}
+
+		global $wpdb;
+
+		$booking = $wpdb->get_row(
+			$wpdb->prepare(
+				"
+				SELECT b.*, m.member_code, m.first_name, m.last_name, m.email, p.post_title AS event_title
+				FROM {$this->bookings_table} b
+				LEFT JOIN {$this->members_table} m ON b.member_id = m.id
+				LEFT JOIN {$wpdb->posts} p ON b.event_id = p.ID
+				WHERE b.id = %d
+				",
+				$booking_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! $booking ) {
+			wp_send_json_error( array( 'message' => 'Prenotazione non trovata' ), 404 );
+		}
+
+		$guests = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id, guest_type, guest_name, quantity, unit_price, total_price FROM {$this->booking_guests_table} WHERE booking_id = %d ORDER BY id ASC",
+				$booking_id
+			),
+			ARRAY_A
+		);
+
+		$guests_out = array();
+		foreach ( $guests as $g ) {
+			$guests_out[] = array(
+				'id'                 => (int) $g['id'],
+				'guest_type'         => (string) $g['guest_type'],
+				'guest_name'         => (string) $g['guest_name'],
+				'unit_price'         => (float) $g['unit_price'],
+				'unit_price_formatted' => number_format_i18n( (float) $g['unit_price'], 2 ),
+			);
+		}
+
+		$guest_types_meta = get_post_meta( (int) $booking['event_id'], '_gec_guest_types', true );
+		$guest_types      = $guest_types_meta ? json_decode( $guest_types_meta, true ) : array();
+		$guest_types_out  = array();
+		if ( is_array( $guest_types ) ) {
+			foreach ( $guest_types as $t ) {
+				if ( empty( $t['label'] ) ) {
+					continue;
+				}
+				$guest_types_out[] = array(
+					'label'           => (string) $t['label'],
+					'price'           => isset( $t['price'] ) ? (float) $t['price'] : 0.0,
+					'price_formatted' => number_format_i18n( isset( $t['price'] ) ? (float) $t['price'] : 0.0, 2 ),
+				);
+			}
+		}
+
+		$out = array(
+			'booking' => array(
+				'id'                 => (int) $booking['id'],
+				'event_id'            => (int) $booking['event_id'],
+				'event_title'         => (string) $booking['event_title'],
+				'member_id'           => (int) $booking['member_id'],
+				'member_code'         => (string) $booking['member_code'],
+				'member_name'         => trim( (string) $booking['first_name'] . ' ' . (string) $booking['last_name'] ),
+				'member_email'        => (string) $booking['email'],
+				'total_amount'        => (float) $booking['total_amount'],
+				'total_amount_formatted' => number_format_i18n( (float) $booking['total_amount'], 2 ),
+				'notes'               => (string) $booking['notes'],
+				'status'              => (string) $booking['status'],
+				'created_at_formatted'=> mysql2date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $booking['created_at'] ),
+			),
+			'guests' => $guests_out,
+			'guest_types' => $guest_types_out,
+		);
+
+		wp_send_json_success( $out );
+	}
+
+	public function ajax_update_booking() {
+		$this->ajax_require_admin();
+
+		$booking_id = isset( $_POST['booking_id'] ) ? (int) $_POST['booking_id'] : 0;
+		if ( $booking_id <= 0 ) {
+			wp_send_json_error( array( 'message' => 'booking_id non valido' ), 400 );
+		}
+
+		$notes  = isset( $_POST['notes'] ) ? sanitize_textarea_field( wp_unslash( $_POST['notes'] ) ) : '';
+		$status = isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : 'confirmed';
+		$allowed_status = array( 'confirmed', 'cancelled', 'pending' );
+		if ( ! in_array( $status, $allowed_status, true ) ) {
+			$status = 'confirmed';
+		}
+
+		$guests_json = isset( $_POST['guests'] ) ? (string) wp_unslash( $_POST['guests'] ) : '[]';
+		$guests_req  = json_decode( $guests_json, true );
+		if ( ! is_array( $guests_req ) ) {
+			$guests_req = array();
+		}
+
+		global $wpdb;
+
+		$booking = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$this->bookings_table} WHERE id = %d",
+				$booking_id
+			),
+			ARRAY_A
+		);
+		if ( ! $booking ) {
+			wp_send_json_error( array( 'message' => 'Prenotazione non trovata' ), 404 );
+		}
+
+		$event_id = (int) $booking['event_id'];
+		$member_price = (float) get_post_meta( $event_id, '_gec_member_price', true );
+
+		$wpdb->update(
+			$this->bookings_table,
+			array(
+				'notes'  => $notes,
+				'status' => $status,
+			),
+			array( 'id' => $booking_id )
+		);
+
+		// Update guest names (and keep 1 row = 1 guest).
+		foreach ( $guests_req as $g ) {
+			$gid = isset( $g['id'] ) ? (int) $g['id'] : 0;
+			if ( $gid <= 0 ) {
+				continue;
+			}
+
+			$guest_name = isset( $g['guest_name'] ) ? sanitize_text_field( wp_unslash( $g['guest_name'] ) ) : '';
+
+			$wpdb->update(
+				$this->booking_guests_table,
+				array(
+					'guest_name' => $guest_name,
+					'quantity'   => 1,
+				),
+				array(
+					'id'         => $gid,
+					'booking_id' => $booking_id,
+				)
+			);
+
+			$unit_price = (float) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT unit_price FROM {$this->booking_guests_table} WHERE id = %d AND booking_id = %d",
+					$gid,
+					$booking_id
+				)
+			);
+
+			$wpdb->update(
+				$this->booking_guests_table,
+				array( 'total_price' => $unit_price ),
+				array(
+					'id'         => $gid,
+					'booking_id' => $booking_id,
+				),
+				array( '%f' ),
+				array( '%d', '%d' )
+			);
+		}
+
+		// Recompute total: member price + sum guests' total_price.
+		$guests_total = (float) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COALESCE(SUM(total_price), 0) FROM {$this->booking_guests_table} WHERE booking_id = %d",
+				$booking_id
+			)
+		);
+		$new_total = $member_price + $guests_total;
+
+		$wpdb->update(
+			$this->bookings_table,
+			array( 'total_amount' => $new_total ),
+			array( 'id' => $booking_id ),
+			array( '%f' ),
+			array( '%d' )
+		);
+
+		wp_send_json_success( array( 'total_amount' => $new_total ) );
+	}
+
+	public function ajax_delete_booking() {
+		$this->ajax_require_admin();
+
+		$booking_id = isset( $_POST['booking_id'] ) ? (int) $_POST['booking_id'] : 0;
+		if ( $booking_id <= 0 ) {
+			wp_send_json_error( array( 'message' => 'booking_id non valido' ), 400 );
+		}
+
+		global $wpdb;
+
+		$wpdb->delete( $this->booking_guests_table, array( 'booking_id' => $booking_id ), array( '%d' ) );
+		$wpdb->delete( $this->bookings_table, array( 'id' => $booking_id ), array( '%d' ) );
+
+		wp_send_json_success( array( 'deleted' => true ) );
+	}
+
+	public function ajax_add_guest() {
+		$this->ajax_require_admin();
+
+		$booking_id  = isset( $_POST['booking_id'] ) ? (int) $_POST['booking_id'] : 0;
+		$guest_type  = isset( $_POST['guest_type'] ) ? sanitize_text_field( wp_unslash( $_POST['guest_type'] ) ) : '';
+		$guest_name  = isset( $_POST['guest_name'] ) ? sanitize_text_field( wp_unslash( $_POST['guest_name'] ) ) : '';
+
+		if ( $booking_id <= 0 || $guest_type === '' || $guest_name === '' ) {
+			wp_send_json_error( array( 'message' => 'Parametri non validi' ), 400 );
+		}
+
+		global $wpdb;
+
+		$booking = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$this->bookings_table} WHERE id = %d",
+				$booking_id
+			),
+			ARRAY_A
+		);
+		if ( ! $booking ) {
+			wp_send_json_error( array( 'message' => 'Prenotazione non trovata' ), 404 );
+		}
+
+		$event_id = (int) $booking['event_id'];
+		$guest_types_meta = get_post_meta( $event_id, '_gec_guest_types', true );
+		$guest_types      = $guest_types_meta ? json_decode( $guest_types_meta, true ) : array();
+		$unit_price        = null;
+
+		if ( is_array( $guest_types ) ) {
+			foreach ( $guest_types as $t ) {
+				if ( isset( $t['label'] ) && (string) $t['label'] === $guest_type ) {
+					$unit_price = isset( $t['price'] ) ? (float) $t['price'] : 0.0;
+					break;
+				}
+			}
+		}
+
+		if ( null === $unit_price ) {
+			wp_send_json_error( array( 'message' => 'Tipologia accompagnatore non valida per questo evento' ), 400 );
+		}
+
+		$wpdb->insert(
+			$this->booking_guests_table,
+			array(
+				'booking_id'  => $booking_id,
+				'guest_type'  => $guest_type,
+				'guest_name'  => $guest_name,
+				'quantity'    => 1,
+				'unit_price'  => $unit_price,
+				'total_price' => $unit_price,
+			),
+			array( '%d', '%s', '%s', '%d', '%f', '%f' )
+		);
+
+		$this->recompute_booking_total( $booking_id, $event_id );
+
+		wp_send_json_success( array( 'added' => true ) );
+	}
+
+	public function ajax_delete_guest() {
+		$this->ajax_require_admin();
+
+		$booking_id = isset( $_POST['booking_id'] ) ? (int) $_POST['booking_id'] : 0;
+		$guest_id   = isset( $_POST['guest_id'] ) ? (int) $_POST['guest_id'] : 0;
+
+		if ( $booking_id <= 0 || $guest_id <= 0 ) {
+			wp_send_json_error( array( 'message' => 'Parametri non validi' ), 400 );
+		}
+
+		global $wpdb;
+
+		$booking = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$this->bookings_table} WHERE id = %d",
+				$booking_id
+			),
+			ARRAY_A
+		);
+		if ( ! $booking ) {
+			wp_send_json_error( array( 'message' => 'Prenotazione non trovata' ), 404 );
+		}
+
+		$wpdb->delete(
+			$this->booking_guests_table,
+			array(
+				'id'         => $guest_id,
+				'booking_id' => $booking_id,
+			),
+			array( '%d', '%d' )
+		);
+
+		$this->recompute_booking_total( $booking_id, (int) $booking['event_id'] );
+
+		wp_send_json_success( array( 'deleted' => true ) );
+	}
+
+	private function ajax_require_admin() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Forbidden' ), 403 );
+		}
+
+		check_ajax_referer( 'gec_booking_admin' );
+	}
+
+	private function recompute_booking_total( $booking_id, $event_id ) {
+		global $wpdb;
+
+		$member_price = (float) get_post_meta( (int) $event_id, '_gec_member_price', true );
+		$guests_total = (float) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COALESCE(SUM(total_price), 0) FROM {$this->booking_guests_table} WHERE booking_id = %d",
+				(int) $booking_id
+			)
+		);
+
+		$new_total = $member_price + $guests_total;
+
+		$wpdb->update(
+			$this->bookings_table,
+			array( 'total_amount' => $new_total ),
+			array( 'id' => (int) $booking_id ),
+			array( '%f' ),
+			array( '%d' )
+		);
+
+		return $new_total;
 	}
 
 	private function render_bookings_list() {
