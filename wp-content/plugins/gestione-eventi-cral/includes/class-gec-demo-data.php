@@ -26,6 +26,11 @@ class GEC_Demo_Data {
 			self::seed_more_bookings_with_notes();
 			update_option( 'gec_demo_data_version', 2 );
 		}
+
+		if ( $version < 3 ) {
+			self::seed_random_activity_categories();
+			update_option( 'gec_demo_data_version', 3 );
+		}
 	}
 
 	private static function seed() {
@@ -59,6 +64,71 @@ class GEC_Demo_Data {
 		}
 
 		self::create_bookings( array_values( $event_ids ), array_values( $member_ids ), 15, true );
+	}
+
+	/**
+	 * Create random "Categorie attività" and assign at least one activity to one category.
+	 */
+	private static function seed_random_activity_categories() {
+		if ( ! taxonomy_exists( 'cral_event_category' ) ) {
+			return;
+		}
+
+		$base_names = array(
+			'Gite e viaggi',
+			'Benessere',
+			'Cultura',
+			'Sport e outdoor',
+			'Famiglia',
+			'Teatro e spettacoli',
+			'Sociale',
+			'Weekend',
+			'Enogastronomia',
+			'Natura',
+		);
+
+		shuffle( $base_names );
+		$to_create = array_slice( $base_names, 0, 5 );
+
+		$created_terms = array();
+		foreach ( $to_create as $name ) {
+			$existing = term_exists( $name, 'cral_event_category' );
+			if ( $existing ) {
+				$term_id = is_array( $existing ) && isset( $existing['term_id'] ) ? (int) $existing['term_id'] : (int) $existing;
+				if ( $term_id > 0 ) {
+					$created_terms[] = $term_id;
+				}
+				continue;
+			}
+
+			$r = wp_insert_term( $name, 'cral_event_category' );
+			if ( ! is_wp_error( $r ) && ! empty( $r['term_id'] ) ) {
+				$created_terms[] = (int) $r['term_id'];
+			}
+		}
+
+		if ( empty( $created_terms ) ) {
+			return;
+		}
+
+		// Assign one existing activity to the first created/random category.
+		$event_ids = get_posts(
+			array(
+				'post_type'      => 'cral_event',
+				'post_status'    => 'publish',
+				'fields'         => 'ids',
+				'posts_per_page' => 1,
+				'orderby'        => 'date',
+				'order'          => 'DESC',
+			)
+		);
+
+		if ( empty( $event_ids ) ) {
+			return;
+		}
+
+		$event_id = (int) $event_ids[0];
+		wp_set_object_terms( $event_id, array( (int) $created_terms[0] ), 'cral_event_category', false );
 	}
 
 	/**

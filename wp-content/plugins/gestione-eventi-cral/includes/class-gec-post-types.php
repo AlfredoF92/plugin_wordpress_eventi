@@ -8,6 +8,7 @@ class GEC_Post_Types {
 
 	public function register() {
 		add_action( 'init', array( $this, 'register_event_post_type' ) );
+		add_action( 'init', array( $this, 'ensure_elementor_support_for_cral_event' ), 30 );
 		add_action( 'add_meta_boxes', array( $this, 'register_event_meta_box' ) );
 		add_action( 'save_post_cral_event', array( $this, 'save_event_meta' ), 10, 2 );
 
@@ -17,23 +18,46 @@ class GEC_Post_Types {
 		add_filter( 'post_row_actions', array( $this, 'add_event_row_actions' ), 10, 2 );
 	}
 
+	/**
+	 * Force Elementor to recognize our CPT in editor + Theme Builder conditions.
+	 *
+	 * Elementor uses both:
+	 * - `post_type_supports( $cpt, 'elementor' )`
+	 * - option `elementor_cpt_support` (array of CPT slugs)
+	 */
+	public function ensure_elementor_support_for_cral_event() {
+		// Add post type support flag.
+		add_post_type_support( 'cral_event', 'elementor' );
+
+		// Add to Elementor supported CPTs option.
+		$supported = get_option( 'elementor_cpt_support', array() );
+		if ( ! is_array( $supported ) ) {
+			$supported = array();
+		}
+
+		if ( ! in_array( 'cral_event', $supported, true ) ) {
+			$supported[] = 'cral_event';
+			update_option( 'elementor_cpt_support', array_values( array_unique( $supported ) ) );
+		}
+	}
+
 	public function register_event_post_type() {
 		$labels = array(
-			'name'               => __( 'Eventi CRAL', 'gestione-eventi-cral' ),
-			'singular_name'      => __( 'Evento CRAL', 'gestione-eventi-cral' ),
-			'add_new'            => __( 'Aggiungi nuovo', 'gestione-eventi-cral' ),
-			'add_new_item'       => __( 'Aggiungi nuovo evento', 'gestione-eventi-cral' ),
-			'edit_item'          => __( 'Modifica evento', 'gestione-eventi-cral' ),
-			'new_item'           => __( 'Nuovo evento', 'gestione-eventi-cral' ),
-			'view_item'          => __( 'Vedi evento', 'gestione-eventi-cral' ),
-			'search_items'       => __( 'Cerca eventi', 'gestione-eventi-cral' ),
-			'not_found'          => __( 'Nessun evento trovato', 'gestione-eventi-cral' ),
-			'not_found_in_trash' => __( 'Nessun evento nel cestino', 'gestione-eventi-cral' ),
-			'menu_name'          => __( 'Eventi CRAL', 'gestione-eventi-cral' ),
+			'name'               => __( 'Attività CRAL', 'gestione-eventi-cral' ),
+			'singular_name'      => __( 'Attività CRAL', 'gestione-eventi-cral' ),
+			'add_new'            => __( 'Aggiungi nuova', 'gestione-eventi-cral' ),
+			'add_new_item'       => __( 'Aggiungi nuova attività', 'gestione-eventi-cral' ),
+			'edit_item'          => __( 'Modifica attività', 'gestione-eventi-cral' ),
+			'new_item'           => __( 'Nuova attività', 'gestione-eventi-cral' ),
+			'view_item'          => __( 'Vedi attività', 'gestione-eventi-cral' ),
+			'search_items'       => __( 'Cerca attività', 'gestione-eventi-cral' ),
+			'not_found'          => __( 'Nessuna attività trovata', 'gestione-eventi-cral' ),
+			'not_found_in_trash' => __( 'Nessuna attività nel cestino', 'gestione-eventi-cral' ),
+			'menu_name'          => __( 'Attività CRAL', 'gestione-eventi-cral' ),
 		);
 
 		$args = array(
-			'label'               => __( 'Eventi CRAL', 'gestione-eventi-cral' ),
+			'label'               => __( 'Attività CRAL', 'gestione-eventi-cral' ),
 			'labels'              => $labels,
 			'public'              => true,
 			'show_ui'             => true,
@@ -51,10 +75,18 @@ class GEC_Post_Types {
 			'cral_event_category',
 			'cral_event',
 			array(
-				'label'        => __( 'Categorie eventi', 'gestione-eventi-cral' ),
-				'hierarchical' => true,
-				'show_ui'      => true,
-				'show_in_rest' => true,
+				'label'             => __( 'Categorie attività', 'gestione-eventi-cral' ),
+				'public'            => true,
+				'hierarchical'      => true,
+				'show_ui'           => true,
+				'show_admin_column' => true,
+				'show_in_rest'      => true,
+				'query_var'         => true,
+				'rewrite'           => array(
+					'slug'         => 'categorie-attivita',
+					'with_front'   => false,
+					'hierarchical' => true,
+				),
 			)
 		);
 	}
