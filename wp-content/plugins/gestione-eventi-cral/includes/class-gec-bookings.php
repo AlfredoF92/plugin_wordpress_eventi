@@ -82,6 +82,41 @@ class GEC_Bookings {
 
 		global $wpdb;
 
+		// Summary (confirmed bookings only).
+		$max_participants = (int) get_post_meta( $event_id, '_gec_max_participants', true );
+
+		$confirmed_bookings_count = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$this->bookings_table} WHERE event_id = %d AND status = %s",
+				$event_id,
+				'confirmed'
+			)
+		);
+
+		$confirmed_guests_count = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"
+				SELECT COALESCE(SUM(bg.quantity), 0)
+				FROM {$this->booking_guests_table} bg
+				INNER JOIN {$this->bookings_table} b ON bg.booking_id = b.id
+				WHERE b.event_id = %d AND b.status = %s
+				",
+				$event_id,
+				'confirmed'
+			)
+		);
+
+		$confirmed_total_paid = (float) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COALESCE(SUM(total_amount), 0) FROM {$this->bookings_table} WHERE event_id = %d AND status = %s",
+				$event_id,
+				'confirmed'
+			)
+		);
+
+		$seats_occupied   = $confirmed_bookings_count + $confirmed_guests_count;
+		$seats_available  = $max_participants > 0 ? max( 0, $max_participants - $seats_occupied ) : null;
+
 		$bookings = $wpdb->get_results(
 			$wpdb->prepare(
 				"
@@ -121,6 +156,39 @@ class GEC_Bookings {
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( sprintf( __( 'Iscritti: %s', 'gestione-eventi-cral' ), $event_title ? $event_title : '#' . $event_id ) ); ?></h1>
+			<div style="margin:10px 0 14px;padding:12px 14px;background:#fff;border:1px solid #dcdcde;border-radius:6px;">
+				<strong><?php esc_html_e( 'Riepilogo (confermate)', 'gestione-eventi-cral' ); ?></strong>
+				<ul style="margin:8px 0 0 18px;">
+					<li><?php echo esc_html( sprintf( __( 'Soci iscritti: %d', 'gestione-eventi-cral' ), $confirmed_bookings_count ) ); ?></li>
+					<li><?php echo esc_html( sprintf( __( 'Accompagnatori: %d', 'gestione-eventi-cral' ), $confirmed_guests_count ) ); ?></li>
+					<?php if ( $max_participants > 0 ) : ?>
+						<li>
+							<?php
+							echo esc_html(
+								sprintf(
+									__( 'Posti: %1$d occupati / %2$d totali (%3$d disponibili)', 'gestione-eventi-cral' ),
+									$seats_occupied,
+									$max_participants,
+									(int) $seats_available
+								)
+							);
+							?>
+						</li>
+					<?php else : ?>
+						<li><?php echo esc_html( sprintf( __( 'Posti occupati: %d', 'gestione-eventi-cral' ), $seats_occupied ) ); ?></li>
+					<?php endif; ?>
+					<li>
+						<?php
+						echo esc_html(
+							sprintf(
+								__( 'Totale pagato: %s', 'gestione-eventi-cral' ),
+								number_format_i18n( $confirmed_total_paid, 2 )
+							)
+						);
+						?>
+					</li>
+				</ul>
+			</div>
 			<p><a class="button" href="<?php echo esc_url( $back_url ); ?>"><?php esc_html_e( '← Torna agli eventi', 'gestione-eventi-cral' ); ?></a></p>
 
 			<table class="widefat fixed striped">
