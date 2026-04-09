@@ -16,12 +16,49 @@ class GEC_Bookings {
 		$this->booking_guests_table = $wpdb->prefix . 'cral_booking_guests';
 		$this->members_table        = $wpdb->prefix . 'cral_members';
 
+		add_action( 'admin_init', array( $this, 'maybe_handle_event_attendees_csv_export' ), 1 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue_scripts' ) );
 		add_action( 'wp_ajax_gec_get_booking_details', array( $this, 'ajax_get_booking_details' ) );
 		add_action( 'wp_ajax_gec_update_booking', array( $this, 'ajax_update_booking' ) );
 		add_action( 'wp_ajax_gec_delete_booking', array( $this, 'ajax_delete_booking' ) );
 		add_action( 'wp_ajax_gec_add_guest', array( $this, 'ajax_add_guest' ) );
 		add_action( 'wp_ajax_gec_delete_guest', array( $this, 'ajax_delete_guest' ) );
+	}
+
+	/**
+	 * Downloads CSV for event attendees.
+	 * Must run before admin page output, otherwise headers are already sent.
+	 */
+	public function maybe_handle_event_attendees_csv_export() {
+		if ( ! is_admin() ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$page = isset( $_GET['page'] ) ? sanitize_key( (string) $_GET['page'] ) : '';
+		if ( 'gec-event-attendees' !== $page ) {
+			return;
+		}
+
+		$export_action = isset( $_GET['gec_export'] ) ? sanitize_key( (string) $_GET['gec_export'] ) : '';
+		if ( 'csv' !== $export_action ) {
+			return;
+		}
+
+		$event_id = isset( $_GET['event_id'] ) ? (int) $_GET['event_id'] : 0;
+		if ( $event_id <= 0 ) {
+			wp_die( esc_html__( 'Evento non valido.', 'gestione-eventi-cral' ) );
+		}
+
+		$nonce = isset( $_GET['_wpnonce'] ) ? (string) $_GET['_wpnonce'] : '';
+		if ( ! wp_verify_nonce( $nonce, 'gec_export_csv_event_' . $event_id ) ) {
+			wp_die( esc_html__( 'Token non valido.', 'gestione-eventi-cral' ) );
+		}
+
+		$this->output_event_attendees_csv( $event_id );
 	}
 
 	public function admin_enqueue_scripts( $hook_suffix ) {
@@ -153,6 +190,34 @@ class GEC_Bookings {
 			}
 		}
 
+		// Build preview CSV (optional, shown on this page).
+		$show_csv_preview = ! empty( $_GET['gec_export_preview'] ) && 'csv' === sanitize_key( (string) $_GET['gec_export_preview'] );
+		$csv_preview_text = '';
+		if ( $show_csv_preview ) {
+			$csv_preview_text = $this->build_event_attendees_csv_string( $event_id, $bookings, $guests_by_booking );
+		}
+
+		$export_url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'page'      => 'gec-event-attendees',
+					'event_id'  => $event_id,
+					'gec_export'=> 'csv',
+				),
+				admin_url( 'admin.php' )
+			),
+			'gec_export_csv_event_' . $event_id
+		);
+
+		$preview_url = add_query_arg(
+			array(
+				'page'              => 'gec-event-attendees',
+				'event_id'          => $event_id,
+				'gec_export_preview'=> 'csv',
+			),
+			admin_url( 'admin.php' )
+		);
+
 		?>
 		<div class="wrap gec-wrap">
 			<div class="gec-header">
@@ -202,7 +267,28 @@ class GEC_Bookings {
 					</p>
 				<?php endif; ?>
 			</div>
-			<p><a class="button" href="<?php echo esc_url( $back_url ); ?>"><?php esc_html_e( '← Torna agli eventi', 'gestione-eventi-cral' ); ?></a></p>
+			<p style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+				<a class="button" href="<?php echo esc_url( $back_url ); ?>"><?php esc_html_e( '← Torna agli eventi', 'gestione-eventi-cral' ); ?></a>
+				<a class="button" href="<?php echo esc_url( $preview_url ); ?>"><?php esc_html_e( 'Anteprima esportazione CSV', 'gestione-eventi-cral' ); ?></a>
+				<a class="button button-primary" href="<?php echo esc_url( $export_url ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Confermi esportazione CSV di tutte le prenotazioni di questo evento?', 'gestione-eventi-cral' ) ); ?>');">
+					<?php esc_html_e( 'Esporta CSV', 'gestione-eventi-cral' ); ?>
+				</a>
+			</p>
+
+			<?php if ( $show_csv_preview ) : ?>
+				<div class="gec-card gec-card--padded" style="margin-top:12px;">
+					<div class="gec-label"><?php esc_html_e( 'Anteprima CSV', 'gestione-eventi-cral' ); ?></div>
+					<p class="gec-subtitle" style="margin-top:8px;">
+						<?php esc_html_e( 'Qui sotto vedi il contenuto che verrà esportato. Se è ok, premi “Esporta CSV”.', 'gestione-eventi-cral' ); ?>
+					</p>
+					<textarea readonly class="large-text code" rows="14" style="margin-top:10px;white-space:pre;"><?php echo esc_textarea( $csv_preview_text ); ?></textarea>
+					<p style="margin-top:10px;">
+						<a class="button button-primary" href="<?php echo esc_url( $export_url ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Confermi esportazione CSV di tutte le prenotazioni di questo evento?', 'gestione-eventi-cral' ) ); ?>');">
+							<?php esc_html_e( 'Esporta CSV', 'gestione-eventi-cral' ); ?>
+						</a>
+					</p>
+				</div>
+			<?php endif; ?>
 
 			<table class="widefat fixed striped gec-table">
 				<thead>
@@ -366,6 +452,200 @@ class GEC_Bookings {
 			</div>
 		</div>
 		<?php
+	}
+
+	private function build_event_attendees_csv_rows( $event_id, $bookings, $guests_by_booking ) {
+		$event_id    = (int) $event_id;
+		$event_title = get_the_title( $event_id );
+
+		$header = array(
+			'event_id',
+			'event_title',
+			'booking_id',
+			'status',
+			'created_at',
+			'member_id',
+			'member_code',
+			'member_name',
+			'member_email',
+			'seats_total',
+			'guest_count',
+			'guests_by_type',
+			'guest_names',
+			'total_amount',
+			'notes',
+		);
+
+		$rows = array();
+		$rows[] = $header;
+
+		if ( empty( $bookings ) ) {
+			return $rows;
+		}
+
+		foreach ( $bookings as $booking ) {
+			$booking_id = isset( $booking->id ) ? (int) $booking->id : 0;
+
+			$guest_count = 0;
+			$guest_names = array();
+			$by_type     = array();
+
+			$booking_guests = isset( $guests_by_booking[ $booking_id ] ) ? $guests_by_booking[ $booking_id ] : array();
+			foreach ( $booking_guests as $g ) {
+				$type = isset( $g->guest_type ) ? (string) $g->guest_type : '';
+				$name = isset( $g->guest_name ) ? trim( (string) $g->guest_name ) : '';
+				$qty  = isset( $g->quantity ) ? (int) $g->quantity : 0;
+				$unit = isset( $g->unit_price ) ? (float) $g->unit_price : 0.0;
+
+				// New model: one row per guest with name (quantity=1).
+				if ( '' !== $name ) {
+					$guest_count += 1;
+					$guest_names[] = $name;
+					if ( '' !== $type ) {
+						if ( ! isset( $by_type[ $type ] ) ) {
+							$by_type[ $type ] = array( 'qty' => 0, 'subtotal' => 0.0 );
+						}
+						$by_type[ $type ]['qty'] += 1;
+						$by_type[ $type ]['subtotal'] += $unit;
+					}
+					continue;
+				}
+
+				// Back-compat: aggregated guests without names.
+				if ( $qty > 0 ) {
+					$guest_count += $qty;
+					if ( '' !== $type ) {
+						if ( ! isset( $by_type[ $type ] ) ) {
+							$by_type[ $type ] = array( 'qty' => 0, 'subtotal' => 0.0 );
+						}
+						$by_type[ $type ]['qty'] += $qty;
+						$by_type[ $type ]['subtotal'] += ( $unit * $qty );
+					}
+				}
+			}
+
+			$seats_total = 1 + $guest_count;
+
+			$by_type_parts = array();
+			foreach ( $by_type as $type => $data ) {
+				$by_type_parts[] = sprintf(
+					'%s=%d (%.2f)',
+					$type,
+					(int) $data['qty'],
+					(float) $data['subtotal']
+				);
+			}
+
+			$member_name = trim( (string) $booking->first_name . ' ' . (string) $booking->last_name );
+
+			$rows[] = array(
+				$event_id,
+				$event_title,
+				$booking_id,
+				isset( $booking->status ) ? (string) $booking->status : '',
+				isset( $booking->created_at ) ? (string) $booking->created_at : '',
+				isset( $booking->member_id ) ? (int) $booking->member_id : 0,
+				isset( $booking->member_code ) ? (string) $booking->member_code : '',
+				$member_name,
+				isset( $booking->email ) ? (string) $booking->email : '',
+				$seats_total,
+				$guest_count,
+				implode( ' | ', $by_type_parts ),
+				implode( ' | ', $guest_names ),
+				isset( $booking->total_amount ) ? (string) $booking->total_amount : '0',
+				isset( $booking->notes ) ? (string) $booking->notes : '',
+			);
+		}
+
+		return $rows;
+	}
+
+	private function build_event_attendees_csv_string( $event_id, $bookings, $guests_by_booking ) {
+		$rows = $this->build_event_attendees_csv_rows( $event_id, $bookings, $guests_by_booking );
+
+		$fp = fopen( 'php://temp', 'r+' );
+		if ( ! $fp ) {
+			return '';
+		}
+
+		foreach ( $rows as $row ) {
+			fputcsv( $fp, $row, ';' );
+		}
+
+		rewind( $fp );
+		$out = stream_get_contents( $fp );
+		fclose( $fp );
+
+		return is_string( $out ) ? $out : '';
+	}
+
+	private function output_event_attendees_csv( $event_id ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'Forbidden', 'gestione-eventi-cral' ) );
+		}
+
+		$event_id    = (int) $event_id;
+		$event_title = get_the_title( $event_id );
+
+		global $wpdb;
+
+		$bookings = $wpdb->get_results(
+			$wpdb->prepare(
+				"
+				SELECT b.*, m.member_code, m.first_name, m.last_name, m.email
+				FROM {$this->bookings_table} b
+				LEFT JOIN {$this->members_table} m ON b.member_id = m.id
+				WHERE b.event_id = %d
+				ORDER BY b.created_at DESC
+				",
+				$event_id
+			)
+		);
+
+		$booking_ids = array();
+		foreach ( $bookings as $b ) {
+			$booking_ids[] = (int) $b->id;
+		}
+
+		$guests_by_booking = array();
+		if ( ! empty( $booking_ids ) ) {
+			$placeholders = implode( ',', array_fill( 0, count( $booking_ids ), '%d' ) );
+			$query        = $wpdb->prepare(
+				"SELECT * FROM {$this->booking_guests_table} WHERE booking_id IN ($placeholders) ORDER BY id ASC",
+				$booking_ids
+			);
+			$guests = $wpdb->get_results( $query );
+			foreach ( $guests as $g ) {
+				$bid = (int) $g->booking_id;
+				if ( ! isset( $guests_by_booking[ $bid ] ) ) {
+					$guests_by_booking[ $bid ] = array();
+				}
+				$guests_by_booking[ $bid ][] = $g;
+			}
+		}
+
+		$rows = $this->build_event_attendees_csv_rows( $event_id, $bookings, $guests_by_booking );
+
+		$filename = 'iscritti-evento-' . $event_id . '-' . sanitize_title( (string) $event_title ) . '.csv';
+
+		nocache_headers();
+		header( 'Content-Type: text/csv; charset=UTF-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+
+		$fp = fopen( 'php://output', 'w' );
+		if ( ! $fp ) {
+			exit;
+		}
+
+		// UTF-8 BOM for Excel compatibility.
+		fwrite( $fp, "\xEF\xBB\xBF" );
+
+		foreach ( $rows as $row ) {
+			fputcsv( $fp, $row, ';' );
+		}
+
+		fclose( $fp );
+		exit;
 	}
 
 	public function ajax_get_booking_details() {

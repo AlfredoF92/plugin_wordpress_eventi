@@ -11,11 +11,155 @@ class GEC_Post_Types {
 		add_action( 'init', array( $this, 'ensure_elementor_support_for_cral_event' ), 30 );
 		add_action( 'add_meta_boxes', array( $this, 'register_event_meta_box' ) );
 		add_action( 'save_post_cral_event', array( $this, 'save_event_meta' ), 10, 2 );
+		add_action( 'save_post_cral_event', array( $this, 'maybe_save_quick_edit_thumbnail' ), 20, 2 );
+		add_action( 'save_post_cral_event', array( $this, 'maybe_set_random_event_cover_on_save' ), 30, 2 );
+		add_action( 'admin_init', array( $this, 'maybe_seed_existing_events_random_covers' ), 5 );
 
 		// Admin list table enhancements.
 		add_filter( 'manage_cral_event_posts_columns', array( $this, 'add_event_list_columns' ) );
 		add_action( 'manage_cral_event_posts_custom_column', array( $this, 'render_event_list_columns' ), 10, 2 );
 		add_filter( 'post_row_actions', array( $this, 'add_event_row_actions' ), 10, 2 );
+
+		// Quick Edit: featured image.
+		add_action( 'quick_edit_custom_box', array( $this, 'render_event_quick_edit_box' ), 10, 2 );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_event_quick_edit_assets' ) );
+	}
+
+	/**
+	 * Relative URLs (as requested): we resolve them to attachment IDs.
+	 *
+	 * @return string[]
+	 */
+	private function get_random_cover_relative_urls() {
+		return array(
+			'/cral_2.0/wp-content/uploads/2021/02/outdoor-image-03.jpg',
+			'/cral_2.0/wp-content/uploads/2021/02/outdoor-image-04.jpg',
+			'/cral_2.0/wp-content/uploads/2021/02/outdoor-image-01.jpg',
+			'/cral_2.0/wp-content/uploads/2021/02/outdoor-image-02.jpg',
+			'/cral_2.0/wp-content/uploads/2018/11/camp-4.jpg',
+			'/cral_2.0/wp-content/uploads/2018/11/water-sports-04.jpg',
+			'/cral_2.0/wp-content/uploads/2018/11/camp-1.jpg',
+			'/cral_2.0/wp-content/uploads/2018/11/water-sports-01.jpg',
+		);
+	}
+
+	/**
+	 * @return int[] attachment IDs found in media library
+	 */
+	private function get_random_cover_attachment_ids() {
+		$urls = $this->get_random_cover_relative_urls();
+		$ids  = array();
+
+		foreach ( $urls as $rel ) {
+			$rel = (string) $rel;
+			if ( '' === $rel ) {
+				continue;
+			}
+
+			$abs = home_url( $rel );
+			$abs = esc_url_raw( $abs );
+			if ( '' === $abs ) {
+				continue;
+			}
+
+			$id = (int) attachment_url_to_postid( $abs );
+			if ( $id > 0 ) {
+				$ids[] = $id;
+			}
+		}
+
+		return array_values( array_unique( $ids ) );
+	}
+
+	private function pick_random_cover_attachment_id() {
+		$ids = $this->get_random_cover_attachment_ids();
+		if ( empty( $ids ) ) {
+			return 0;
+		}
+		return (int) $ids[ array_rand( $ids ) ];
+	}
+
+	/**
+	 * Set a random cover on save if none was selected.
+	 */
+	public function maybe_set_random_event_cover_on_save( $post_id, $post ) {
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		if ( wp_is_post_revision( $post_id ) ) {
+			return;
+		}
+
+		if ( ! $post instanceof WP_Post || 'cral_event' !== $post->post_type ) {
+			return;
+		}
+
+		// Skip auto-drafts; set when the user actually saves a real post.
+		if ( 'auto-draft' === $post->post_status ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		if ( has_post_thumbnail( $post_id ) ) {
+			return;
+		}
+
+		$thumb_id = $this->pick_random_cover_attachment_id();
+		if ( $thumb_id > 0 ) {
+			set_post_thumbnail( $post_id, $thumb_id );
+		}
+	}
+
+	/**
+	 * One-time seeding: set random covers for existing events without cover.
+	 */
+	public function maybe_seed_existing_events_random_covers() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		if ( get_option( 'gec_seed_event_covers_done' ) ) {
+			return;
+		}
+
+		$thumb_id = $this->pick_random_cover_attachment_id();
+		if ( $thumb_id <= 0 ) {
+			// No resolvable attachments found.
+			update_option( 'gec_seed_event_covers_done', 1 );
+			return;
+		}
+
+		$events = get_posts(
+			array(
+				'post_type'      => 'cral_event',
+				'post_status'    => array( 'publish', 'draft', 'pending', 'private' ),
+				'posts_per_page' => -1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+			)
+		);
+
+		if ( ! empty( $events ) ) {
+			foreach ( $events as $eid ) {
+				$eid = (int) $eid;
+				if ( $eid <= 0 ) {
+					continue;
+				}
+				if ( has_post_thumbnail( $eid ) ) {
+					continue;
+				}
+				$rand_id = $this->pick_random_cover_attachment_id();
+				if ( $rand_id > 0 ) {
+					set_post_thumbnail( $eid, $rand_id );
+				}
+			}
+		}
+
+		update_option( 'gec_seed_event_covers_done', 1 );
 	}
 
 	/**
@@ -268,6 +412,11 @@ class GEC_Post_Types {
 		$new_columns = array();
 
 		foreach ( $columns as $key => $label ) {
+			if ( 'cb' === $key ) {
+				$new_columns[ $key ]             = $label;
+				$new_columns['gec_cover_thumb']  = __( 'Copertina', 'gestione-eventi-cral' );
+				continue;
+			}
 			$new_columns[ $key ] = $label;
 
 			if ( 'title' === $key ) {
@@ -281,6 +430,21 @@ class GEC_Post_Types {
 	}
 
 	public function render_event_list_columns( $column, $post_id ) {
+		if ( 'gec_cover_thumb' === $column ) {
+			$thumb_id  = get_post_thumbnail_id( $post_id );
+			$thumb_url = $thumb_id ? wp_get_attachment_image_url( $thumb_id, 'thumbnail' ) : '';
+
+			// Keep data attributes for Quick Edit JS.
+			echo '<div class="gec-event-thumb" data-gec-thumb-id="' . esc_attr( (string) (int) $thumb_id ) . '" data-gec-thumb-url="' . esc_url( (string) $thumb_url ) . '">';
+			if ( $thumb_id ) {
+				echo wp_get_attachment_image( $thumb_id, array( 60, 60 ), false, array( 'style' => 'width:60px;height:60px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;' ) );
+			} else {
+				echo '<div style="width:60px;height:60px;border-radius:10px;border:1px dashed #cbd5e1;background:#f8fafc;"></div>';
+			}
+			echo '</div>';
+			return;
+		}
+
 		if ( 'gec_event_date' === $column ) {
 			$date = get_post_meta( $post_id, '_gec_event_date', true );
 			if ( $date ) {
@@ -321,6 +485,99 @@ class GEC_Post_Types {
 
 			echo '<a class="gec-row-btn gec-row-btn--primary" href="' . esc_url( $url ) . '">' . esc_html( $link_label ) . '</a>';
 			return;
+		}
+	}
+
+	public function enqueue_event_quick_edit_assets( $hook_suffix ) {
+		if ( 'edit.php' !== $hook_suffix ) {
+			return;
+		}
+
+		$post_type = isset( $_GET['post_type'] ) ? sanitize_key( (string) $_GET['post_type'] ) : '';
+		if ( 'cral_event' !== $post_type ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			return;
+		}
+
+		wp_enqueue_media();
+		wp_enqueue_script(
+			'gec-admin-events-quick-edit',
+			GEC_PLUGIN_URL . 'assets/admin-events-quick-edit.js',
+			array( 'jquery', 'inline-edit-post' ),
+			GEC_VERSION,
+			true
+		);
+		wp_localize_script(
+			'gec-admin-events-quick-edit',
+			'gecEventQuickEdit',
+			array(
+				'nonce' => wp_create_nonce( 'gec_quick_edit_event_thumb' ),
+			)
+		);
+	}
+
+	public function render_event_quick_edit_box( $column_name, $post_type ) {
+		if ( 'cral_event' !== $post_type ) {
+			return;
+		}
+
+		if ( 'gec_cover_thumb' !== $column_name ) {
+			return;
+		}
+
+		?>
+		<fieldset class="inline-edit-col-right gec-inline-edit-col">
+			<div class="inline-edit-col">
+				<div class="inline-edit-group">
+					<label class="alignleft">
+						<span class="title"><?php esc_html_e( 'Copertina', 'gestione-eventi-cral' ); ?></span>
+						<span class="input-text-wrap">
+							<input type="hidden" name="gec_thumbnail_id" value="" />
+							<input type="hidden" name="gec_quick_edit_event_thumb_nonce" value="<?php echo esc_attr( wp_create_nonce( 'gec_quick_edit_event_thumb' ) ); ?>" />
+							<div class="gec-qe-thumb-preview" style="margin-top:6px;display:flex;gap:10px;align-items:center;">
+								<div class="gec-qe-thumb-img" style="width:60px;height:60px;border-radius:10px;border:1px dashed #cbd5e1;background:#f8fafc;overflow:hidden;"></div>
+								<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+									<button type="button" class="button gec-qe-thumb-pick"><?php esc_html_e( 'Scegli immagine', 'gestione-eventi-cral' ); ?></button>
+									<button type="button" class="button gec-qe-thumb-remove"><?php esc_html_e( 'Rimuovi', 'gestione-eventi-cral' ); ?></button>
+								</div>
+							</div>
+						</span>
+					</label>
+				</div>
+			</div>
+		</fieldset>
+		<?php
+	}
+
+	public function maybe_save_quick_edit_thumbnail( $post_id, $post ) {
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		// Only from Quick Edit/Bulk Edit requests that include our nonce.
+		if ( empty( $_POST['gec_quick_edit_event_thumb_nonce'] ) ) {
+			return;
+		}
+
+		$nonce = (string) $_POST['gec_quick_edit_event_thumb_nonce'];
+		if ( ! wp_verify_nonce( $nonce, 'gec_quick_edit_event_thumb' ) ) {
+			return;
+		}
+
+		if ( isset( $_POST['gec_thumbnail_id'] ) ) {
+			$thumb_id = (int) $_POST['gec_thumbnail_id'];
+			if ( $thumb_id > 0 ) {
+				set_post_thumbnail( $post_id, $thumb_id );
+			} else {
+				delete_post_thumbnail( $post_id );
+			}
 		}
 	}
 

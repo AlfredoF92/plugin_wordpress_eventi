@@ -25,6 +25,9 @@ require_once GEC_PLUGIN_DIR . 'includes/class-gec-demo-data.php';
 require_once GEC_PLUGIN_DIR . 'includes/class-gec-brand.php';
 require_once GEC_PLUGIN_DIR . 'includes/class-gec-auth.php';
 require_once GEC_PLUGIN_DIR . 'includes/class-gec-elementor-dynamic-tags.php';
+require_once GEC_PLUGIN_DIR . 'includes/class-gec-query-settings.php';
+require_once GEC_PLUGIN_DIR . 'includes/class-gec-elementor-query.php';
+require_once GEC_PLUGIN_DIR . 'includes/class-gec-elementor-widgets.php';
 
 register_activation_hook( __FILE__, array( 'GEC_Activator', 'activate' ) );
 
@@ -41,8 +44,14 @@ function gec_bootstrap() {
 	$auth     = new GEC_Auth();
 	$elementor_tags = new GEC_Elementor_Dynamic_Tags();
 	$elementor_tags->register();
+	$elementor_widgets = new GEC_Elementor_Widgets();
+	$elementor_widgets->register();
 
-	$admin_menu = new GEC_Admin_Menu( $members, $bookings, $brand );
+	$query_settings = new GEC_Query_Settings();
+	$elementor_query = new GEC_Elementor_Query( $query_settings );
+	$elementor_query->register();
+
+	$admin_menu = new GEC_Admin_Menu( $members, $bookings, $brand, $query_settings );
 	$admin_menu->register();
 
 	if ( is_admin() ) {

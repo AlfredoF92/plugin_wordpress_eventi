@@ -44,6 +44,8 @@ class GEC_Auth {
 		add_action( 'init', array( $this, 'maybe_handle_frontend_login' ), 1 );
 		add_action( 'init', array( $this, 'maybe_handle_member_booking_delete' ), 1 );
 		add_action( 'init', array( $this, 'maybe_handle_member_event_booking_create' ), 1 );
+		add_action( 'wp_ajax_gec_validate_guest_names', array( $this, 'ajax_validate_guest_names' ) );
+		add_action( 'wp_ajax_nopriv_gec_validate_guest_names', array( $this, 'ajax_validate_guest_names' ) );
 		add_action( 'admin_init', array( $this, 'block_cral_members_from_admin' ) );
 		add_action( 'login_init', array( $this, 'redirect_wp_login_to_frontend' ) );
 		add_filter( 'show_admin_bar', array( $this, 'maybe_hide_admin_bar' ) );
@@ -199,6 +201,53 @@ class GEC_Auth {
 		}
 		// Must contain at least one space between non-space chunks.
 		return (bool) preg_match( '/\S+\s+\S+/', $name );
+	}
+
+	public function ajax_validate_guest_names() {
+		if ( ! is_user_logged_in() ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Sessione scaduta. Effettua di nuovo il login e riprova.', 'gestione-eventi-cral' ),
+				),
+				401
+			);
+		}
+
+		$nonce = isset( $_POST['nonce'] ) ? (string) $_POST['nonce'] : '';
+		if ( ! wp_verify_nonce( $nonce, 'gec_frontend_booking_validate' ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Token non valido. Ricarica la pagina e riprova.', 'gestione-eventi-cral' ),
+				),
+				403
+			);
+		}
+
+		$guests_in = isset( $_POST['guests'] ) && is_array( $_POST['guests'] ) ? (array) $_POST['guests'] : array();
+
+		foreach ( $guests_in as $type_key => $names ) {
+			if ( ! is_array( $names ) ) {
+				continue;
+			}
+
+			foreach ( $names as $n ) {
+				$n = sanitize_text_field( wp_unslash( $n ) );
+				$n = trim( (string) $n );
+				if ( '' === $n ) {
+					continue;
+				}
+				if ( ! $this->is_valid_guest_full_name( $n ) ) {
+					wp_send_json_error(
+						array(
+							'message' => __( 'Ogni accompagnatore deve avere Nome e Cognome (con uno spazio).', 'gestione-eventi-cral' ),
+						),
+						400
+					);
+				}
+			}
+		}
+
+		wp_send_json_success( array( 'ok' => true ) );
 	}
 
 	public function render_event_booking_form_shortcode( $atts ) {
@@ -403,9 +452,9 @@ class GEC_Auth {
 					);
 					?>
 
-					<div class="gec-card gec-card--padded" style="margin-top:10px;">
+					<div class="gec-card gec-card--padded" style="margin-top:10px;border:1px solid #bbf7d0;background:#ecfdf5;padding:12px 14px;">
 						<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
-							<div style="font-weight:900;color:#0f2a52;"><?php esc_html_e( 'Riepilogo prenotazione', 'gestione-eventi-cral' ); ?></div>
+							<div style="font-weight:900;color:#065f46;"><?php esc_html_e( 'Prenotazione Confermata!', 'gestione-eventi-cral' ); ?></div>
 							<div style="font-weight:900;color:#0f2a52;white-space:nowrap;">
 								<?php echo esc_html( number_format_i18n( (float) $booking_existing->total_amount, 2 ) ); ?> €
 							</div>
@@ -540,6 +589,7 @@ class GEC_Auth {
 							<div style="margin-top:8px;font-size:12px;color:#6b7280;">
 								<?php esc_html_e( 'Inserisci Nome e Cognome per ogni accompagnatore.', 'gestione-eventi-cral' ); ?>
 							</div>
+							<div id="gec-booking-inline-error" style="display:none;margin-top:8px;font-size:12px;font-weight:700;color:#991b1b;background:#fee2e2;border:1px solid #fecaca;padding:8px 10px;border-radius:12px;"></div>
 						</div>
 					</form>
 
@@ -547,6 +597,9 @@ class GEC_Auth {
 						(function() {
 							const memberPrice = <?php echo wp_json_encode( (float) $member_price ); ?>;
 							const maxAvailable = <?php echo wp_json_encode( (int) $available ); ?>;
+							// Use relative URL to avoid http/https mismatch (mixed content) on frontend.
+							const ajaxUrl = <?php echo wp_json_encode( admin_url( 'admin-ajax.php', 'relative' ) ); ?>;
+							const ajaxNonce = <?php echo wp_json_encode( wp_create_nonce( 'gec_frontend_booking_validate' ) ); ?>;
 
 							function formatPrice(n) {
 								try {
@@ -628,6 +681,66 @@ class GEC_Auth {
 								}
 							}
 
+							function showInlineError(msg) {
+								const box = document.getElementById('gec-booking-inline-error');
+								if (!box) return;
+								if (!msg) {
+									box.style.display = 'none';
+									box.textContent = '';
+									return;
+								}
+								box.textContent = msg;
+								box.style.display = 'block';
+							}
+
+							function collectGuestsPayload(form) {
+								const payload = {};
+								if (!form) return payload;
+								const inputs = form.querySelectorAll('input[type="text"][data-gec-guest-name="1"]');
+								inputs.forEach((input) => {
+									const name = (input && input.value != null) ? String(input.value).trim() : '';
+									if (name === '') return;
+
+									// Name looks like: gec_guests[KEY][]
+									const m = String(input.name || '').match(/^gec_guests\[([^\]]+)\]\[\]$/);
+									const key = m ? m[1] : 'unknown';
+									if (!payload[key]) payload[key] = [];
+									payload[key].push(name);
+								});
+								return payload;
+							}
+
+							function validateGuestsAjax(guests) {
+								const body = new URLSearchParams();
+								body.set('action', 'gec_validate_guest_names');
+								body.set('nonce', ajaxNonce);
+								Object.keys(guests || {}).forEach((k) => {
+									(guests[k] || []).forEach((n) => {
+										body.append('guests[' + k + '][]', n);
+									});
+								});
+
+								return fetch(ajaxUrl, {
+									method: 'POST',
+									credentials: 'same-origin',
+									headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+									body: body.toString(),
+								}).then((r) => {
+									if (!r || !r.ok) {
+										return { success: false, data: { message: 'Errore di rete (HTTP ' + (r ? r.status : '?') + ').' } };
+									}
+									return r.text().then((txt) => {
+										try {
+											return JSON.parse(txt);
+										} catch (e) {
+											// Show a short snippet to help debugging (e.g. "-1", HTML, PHP warning).
+											const snippet = String(txt || '').trim().slice(0, 220);
+											return { success: false, data: { message: 'AJAX: risposta non JSON: ' + (snippet || '(vuota)') } };
+										}
+									});
+								}).catch(() => ({ success: false, data: { message: 'Errore di rete. Riprova.' } }));
+							}
+
 							document.addEventListener('click', function(e) {
 								const addBtn = e.target && e.target.closest ? e.target.closest('[data-gec-add-guest]') : null;
 								if (addBtn) {
@@ -665,8 +778,37 @@ class GEC_Auth {
 								if (e.target && e.target.matches('input[type="text"][data-gec-guest-name="1"]')) {
 									// Keep totals updated (not strictly necessary but nice).
 									recompute();
+									showInlineError('');
 								}
 							});
+
+							// AJAX validation on submit: show error under "Prenotati" without reloading page.
+							const form = document.querySelector('.gec-event-booking-form form');
+							if (form) {
+								const onSubmit = function(e) {
+									// Let browser handle normal required fields first.
+									if (form.checkValidity && !form.checkValidity()) {
+										return;
+									}
+
+									e.preventDefault();
+									showInlineError('');
+
+									const guests = collectGuestsPayload(form);
+									validateGuestsAjax(guests).then((res) => {
+										if (res && res.success) {
+											// Submit for real.
+											showInlineError('');
+											form.removeEventListener('submit', onSubmit);
+											form.submit();
+											return;
+										}
+										const msg = (res && res.data && res.data.message) ? String(res.data.message) : 'Dati non validi.';
+										showInlineError(msg);
+									});
+								};
+								form.addEventListener('submit', onSubmit);
+							}
 
 							recompute();
 						})();
@@ -1402,6 +1544,15 @@ class GEC_Auth {
 	}
 
 	public function block_cral_members_from_admin() {
+		// Allow admin-ajax.php requests; otherwise frontend AJAX gets redirected to /area-personale/.
+		if ( function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) {
+			return;
+		}
+
+		if ( defined( 'DOING_AJAX' ) && DOING_AJAX ) {
+			return;
+		}
+
 		if ( ! is_user_logged_in() ) {
 			return;
 		}

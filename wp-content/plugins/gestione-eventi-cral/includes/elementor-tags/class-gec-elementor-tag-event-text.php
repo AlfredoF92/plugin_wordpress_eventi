@@ -86,6 +86,17 @@ class GEC_Elementor_Tag_Event_Text extends Tag {
 		$guest_types_json    = (string) get_post_meta( $event_id, '_gec_guest_types', true );
 
 		$event_date_fmt      = $event_date_raw ? mysql2date( get_option( 'date_format' ), $event_date_raw ) : '';
+		$event_date_long     = '';
+		if ( $event_date_raw ) {
+			$ts = strtotime( $event_date_raw . ' 00:00:00' );
+			if ( $ts ) {
+				// Localized day/month names; e.g. "Lunedì, 5 aprile 2026".
+				$fmt = function_exists( 'wp_date' ) ? wp_date( 'l, j F Y', $ts, wp_timezone() ) : date_i18n( 'l, j F Y', $ts );
+				$event_date_long = function_exists( 'mb_convert_case' )
+					? mb_convert_case( (string) $fmt, MB_CASE_TITLE, 'UTF-8' )
+					: ucfirst( (string) $fmt );
+			}
+		}
 		$signup_start_fmt    = $signup_start_raw ? mysql2date( get_option( 'date_format' ), $signup_start_raw ) : '';
 		$signup_end_fmt      = $signup_end_raw ? mysql2date( get_option( 'date_format' ), $signup_end_raw ) : '';
 		$cancel_deadline_fmt = $cancel_deadline_raw ? mysql2date( get_option( 'date_format' ), $cancel_deadline_raw ) : '';
@@ -143,7 +154,7 @@ class GEC_Elementor_Tag_Event_Text extends Tag {
 			'codice_evento'            => (string) $event_code,
 			'categorie'                => (string) $categories_text,
 			'categoria_principale'     => (string) $primary_cat,
-			'data_evento'              => (string) $event_date_fmt,
+			'data_evento'              => (string) $event_date_long,
 			'data_evento_raw'          => (string) $event_date_raw,
 			'data_apertura_iscrizioni' => (string) $signup_start_fmt,
 			'data_chiusura_iscrizioni' => (string) $signup_end_fmt,
